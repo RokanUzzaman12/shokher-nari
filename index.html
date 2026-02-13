@@ -285,12 +285,12 @@
     <div class="container">
       <div class="header">
         <h1>💕 শখের নারী AI 💕</h1>
-        <!-- <p>একবার অনুমতি দিলেই হবে - আর পপআপ আসবে না</p> -->
+        <p>GitHub Pages ফিক্সড ভার্সন - এখন কথা বলবে!</p>
       </div>
 
       <div class="chat-container" id="chatContainer">
         <div class="message bot-message">
-          <div class="message-bubble">💕 হাই বাবু!</div>
+          <div class="message-bubble">💕 হাই বাবু! আমি এখন কথা বলতে পারব!</div>
           <div class="message-time">ঠিক এখন</div>
         </div>
       </div>
@@ -323,6 +323,16 @@
           <span style="color: #ff4444; margin-left: 10px">শুনছি...</span>
         </div>
 
+        <div class="text-input-area">
+          <input
+            type="text"
+            id="textInput"
+            class="text-input"
+            placeholder="এখানে লিখুন..."
+          />
+          <button class="send-btn" id="sendBtn">📨 পাঠান</button>
+        </div>
+
         <div class="status" id="status">প্রস্তুত...</div>
 
         <div class="suggestions" id="suggestions">
@@ -338,7 +348,7 @@
       <div class="footer">💕 মাইক্রোফোন সবসময় খোলা থাকবে - কোনো পপআপ নয়!</div>
     </div>
 
-    <!-- Hidden audio player for Google TTS -->
+    <!-- Hidden audio player for TTS -->
     <audio id="ttsAudio" class="audio-player"></audio>
 
     <script>
@@ -820,16 +830,15 @@
       const ttsAudio = document.getElementById("ttsAudio");
 
       // Global variables
-      let mediaStream = null; // এইটা সবচেয়ে গুরুত্বপূর্ণ - মাইক্রোফোন খোলা রাখবে
+      let mediaStream = null;
       let isListening = false;
       let isSpeaking = false;
       let hasPermission = false;
       let recognition = null;
 
-      // Google TTS Function
-      function speakWithGoogleTTS(text) {
+      // TTS Function - GitHub Pages এর জন্য ফিক্সড
+      function speakWithTTS(text) {
         if (isSpeaking) return;
-
         isSpeaking = true;
 
         // Clean text - remove emojis
@@ -846,317 +855,31 @@
         console.log("Speaking:", cleanText);
         statusDiv.textContent = "🔊 কথা বলছি...";
 
-        const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(cleanText)}&tl=bn&client=tw-ob`;
-
-        ttsAudio.src = ttsUrl;
-        ttsAudio
-          .play()
+        // GitHub Pages-এর জন্য Google TTS API (HTTPS)
+        const ttsUrl = `https://translate.googleapis.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(cleanText)}&tl=bn&client=gtx&ttsspeed=1`;
+        
+        fetch(ttsUrl)
+          .then(response => response.blob())
+          .then(blob => {
+            const url = window.URL.createObjectURL(blob);
+            ttsAudio.src = url;
+            return ttsAudio.play();
+          })
           .then(() => {
             console.log("Speaking finished");
             setTimeout(() => {
               isSpeaking = false;
-            }, 300);
+              window.URL.revokeObjectURL(ttsAudio.src);
+            }, 500);
           })
           .catch((error) => {
             console.error("TTS error:", error);
-            isSpeaking = false;
+            statusDiv.textContent = "⚠️ কথা বলতে সমস্যা, ব্রাউজার TTS ব্যবহার করা হচ্ছে";
+            // Fallback: Browser TTS
+            fallbackBrowserTTS(cleanText);
           });
       }
 
-      // Find best response
-      function findBestResponse(userInput) {
-        userInput = userInput.toLowerCase().trim();
-
-        // Special case for compliments
-        if (userInput.includes("পরী") || userInput.includes("সুন্দর")) {
-          const complimentIntent = intentsData.intents.find(
-            (i) => i.tag === "compliment",
-          );
-          if (complimentIntent) {
-            return complimentIntent.responses[
-              Math.floor(Math.random() * complimentIntent.responses.length)
-            ];
-          }
-        }
-
-        // Check each intent
-        for (const intent of intentsData.intents) {
-          for (const pattern of intent.patterns) {
-            if (userInput.includes(pattern.toLowerCase())) {
-              return intent.responses[
-                Math.floor(Math.random() * intent.responses.length)
-              ];
-            }
-          }
-        }
-
-        return "💕 আমি তোমার কথা শুনতে পাচ্ছি। আরও কিছু বলবে?";
-      }
-
-      function addMessage(text, isUser = false) {
-        const messageDiv = document.createElement("div");
-        messageDiv.classList.add("message");
-        messageDiv.classList.add(isUser ? "user-message" : "bot-message");
-
-        const bubble = document.createElement("div");
-        bubble.classList.add("message-bubble");
-        bubble.textContent = text;
-
-        const time = document.createElement("div");
-        time.classList.add("message-time");
-        const now = new Date();
-        time.textContent = now.toLocaleTimeString("bn-BD", {
-          hour: "2-digit",
-          minute: "2-digit",
-        });
-
-        messageDiv.appendChild(bubble);
-        messageDiv.appendChild(time);
-        chatContainer.appendChild(messageDiv);
-        chatContainer.scrollTop = chatContainer.scrollHeight;
-      }
-
-      function processUserInput(userInput) {
-        if (!userInput || userInput.trim() === "" || isSpeaking) return;
-
-        addMessage(userInput, true);
-
-        const botResponse = findBestResponse(userInput);
-        console.log("Bot response:", botResponse);
-
-        setTimeout(() => {
-          addMessage(botResponse, false);
-          speakWithGoogleTTS(botResponse);
-        }, 500);
-      }
-
-      // মাইক্রোফোন অনুমতি নেওয়ার ফাংশন - শুধু একবার
-      async function getMicrophonePermission() {
-        try {
-          permissionStatus.textContent = "⏳ মাইক্রোফোন অনুমতি চাচ্ছি...";
-          permissionStatus.className = "permission-status";
-
-          // এই লাইনই মাইক্রোফোন খুলে রাখে
-          mediaStream = await navigator.mediaDevices.getUserMedia({
-            audio: {
-              echoCancellation: true,
-              noiseSuppression: true,
-              autoGainControl: true,
-            },
-          });
-
-          console.log("✅ Microphone permission granted permanently");
-          console.log("Media stream active:", mediaStream.active);
-
-          hasPermission = true;
-          permissionStatus.textContent =
-            "✅ মাইক্রোফোন অনুমতি দেওয়া হয়েছে - এখন আর পপআপ আসবে না!";
-          permissionStatus.className = "permission-status granted";
-
-          // এখন Speech Recognition চালু করি
-          initializeRecognition();
-
-          startBtn.disabled = false;
-          statusDiv.textContent =
-            '✅ অনুমতি দেওয়া হয়েছে! "শুরু করুন" ক্লিক করুন';
-
-          // পারমিশন বাটন ডিজেবল করে দিই
-          permissionBtn.disabled = true;
-          permissionBtn.style.opacity = "0.5";
-        } catch (error) {
-          console.error("Permission error:", error);
-          hasPermission = false;
-          permissionStatus.textContent =
-            "❌ মাইক্রোফোন অনুমতি দেওয়া হয়নি। আবার চেষ্টা করুন।";
-          permissionStatus.className = "permission-status denied";
-        }
-      }
-
-      // Speech Recognition initialization
-      function initializeRecognition() {
-        const SpeechRecognition =
-          window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRecognition) {
-          statusDiv.textContent =
-            "❌ আপনার ব্রাউজারে Speech Recognition সাপোর্ট করে না";
-          return;
-        }
-
-        recognition = new SpeechRecognition();
-        recognition.continuous = true;
-        recognition.lang = "bn-BD";
-        recognition.interimResults = false;
-        recognition.maxAlternatives = 1;
-
-        // Setup events
-        recognition.onstart = () => {
-          console.log("Recognition started");
-          isListening = true;
-          startBtn.disabled = true;
-          stopBtn.disabled = false;
-          listeningIndicator.style.display = "flex";
-          statusDiv.textContent = "🎤 ক্রমাগত শুনছি... এখন কথা বলুন";
-        };
-
-        recognition.onresult = (event) => {
-          if (isSpeaking) return;
-
-          const last = event.results.length - 1;
-          const userInput = event.results[last][0].transcript;
-
-          console.log("Heard:", userInput);
-          statusDiv.textContent = `✅ শুনেছি: "${userInput}"`;
-
-          processUserInput(userInput);
-        };
-
-        recognition.onerror = (event) => {
-          console.error("Speech error:", event.error);
-
-          if (event.error === "no-speech") {
-            statusDiv.textContent = "🔇 কিছু শুনতে পাচ্ছি না, কিন্তু শুনছি...";
-          } else if (event.error === "aborted") {
-            console.log("Recognition aborted");
-          } else {
-            statusDiv.textContent = `❌ Error: ${event.error}`;
-          }
-        };
-
-        recognition.onend = () => {
-          console.log("Recognition ended, isListening:", isListening);
-
-          // যদি আমরা শুনতে চাই এবং মাইক্রোফোন খোলা থাকে, তাহলে আবার চালু করি
-          if (
-            isListening &&
-            hasPermission &&
-            mediaStream &&
-            mediaStream.active
-          ) {
-            console.log("Restarting recognition...");
-            setTimeout(() => {
-              try {
-                recognition.start();
-              } catch (e) {
-                console.log("Restart failed:", e);
-              }
-            }, 100);
-          } else {
-            updateUIForStopped();
-          }
-        };
-      }
-
-      function startListening() {
-        if (!hasPermission || !mediaStream || !mediaStream.active) {
-          statusDiv.textContent = "❓ আগে মাইক্রোফোন অনুমতি দিন";
-          return;
-        }
-
-        if (isListening) return;
-
-        try {
-          recognition.start();
-        } catch (error) {
-          console.error("Start error:", error);
-          // যদি start fail করে, নতুন করে initialize করি
-          initializeRecognition();
-          setTimeout(() => {
-            try {
-              recognition.start();
-            } catch (e) {}
-          }, 500);
-        }
-      }
-
-      function stopListening() {
-        isListening = false;
-        if (recognition) {
-          try {
-            recognition.stop();
-          } catch (e) {}
-        }
-        updateUIForStopped();
-      }
-
-      function updateUIForStopped() {
-        startBtn.disabled = !hasPermission;
-        stopBtn.disabled = true;
-        listeningIndicator.style.display = "none";
-
-        if (hasPermission) {
-          statusDiv.textContent = '⏸️ বন্ধ আছে। "শুরু করুন" ক্লিক করুন';
-        }
-      }
-
-      // Check if we already have permission
-      async function checkExistingPermission() {
-        try {
-          // navigator.permissions API ব্যবহার করে চেক করি
-          if (navigator.permissions && navigator.permissions.query) {
-            const permission = await navigator.permissions.query({
-              name: "microphone",
-            });
-
-            if (permission.state === "granted") {
-              console.log("Already have microphone permission");
-              // automatically get stream
-              await getMicrophonePermission();
-            } else if (permission.state === "prompt") {
-              permissionStatus.textContent =
-                "⌛ মাইক্রোফোন অনুমতি প্রয়োজন - 'অনুমতি দিন' বাটন ক্লিক করুন";
-            } else {
-              permissionStatus.textContent =
-                "❌ মাইক্রোফোন অনুমতি নেই - 'অনুমতি দিন' বাটন ক্লিক করুন";
-            }
-
-            // Listen for permission changes
-            permission.onchange = () => {
-              if (permission.state === "granted") {
-                getMicrophonePermission();
-              }
-            };
-          }
-        } catch (e) {
-          console.log("Permission query not supported");
-        }
-      }
-
-      // Event Listeners
-      permissionBtn.addEventListener("click", getMicrophonePermission);
-      startBtn.addEventListener("click", startListening);
-      stopBtn.addEventListener("click", stopListening);
-
-      sendBtn.addEventListener("click", () => {
-        processUserInput(textInput.value);
-        textInput.value = "";
-      });
-
-      textInput.addEventListener("keypress", (e) => {
-        if (e.key === "Enter") {
-          processUserInput(textInput.value);
-          textInput.value = "";
-        }
-      });
-
-      // Suggestion chips
-      suggestionChips.forEach((chip) => {
-        chip.addEventListener("click", () => {
-          const text = chip.textContent.replace(/[💕🥰😊🌙☀️💝]/g, "").trim();
-          processUserInput(text);
-        });
-      });
-
-      // Clean up when page unloads
-      window.addEventListener("beforeunload", () => {
-        if (mediaStream) {
-          mediaStream.getTracks().forEach((track) => track.stop());
-        }
-      });
-
-      // Start checking permission
-      checkExistingPermission();
-
-      console.log("Super fixed version ready - no more permission popups!");
-    </script>
-  </body>
-</html>
+      // Fallback function
+      function fallbackBrowserTTS(text) {
+        const utterance = new SpeechSynthesisUt
